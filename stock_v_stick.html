@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Stock V. Stick</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    background: #05050a;
+    background-image:
+      radial-gradient(circle at 20% 20%, rgba(255,0,255,0.08), transparent 40%),
+      radial-gradient(circle at 80% 80%, rgba(0,255,255,0.08), transparent 40%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Courier New', Courier, monospace;
+    overflow: hidden;
+  }
+  #gameContainer {
+    position: relative;
+    width: 900px;
+    height: 600px;
+    box-shadow: 0 0 40px rgba(0,255,255,0.35), 0 0 80px rgba(255,0,255,0.15);
+    border: 2px solid #0ff;
+    border-radius: 6px;
+  }
+  canvas {
+    display: block;
+    background: linear-gradient(180deg, #0a0018 0%, #10002a 55%, #1a0033 100%);
+  }
+  .overlay {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: #0ff;
+    text-align: center;
+    background: rgba(3,0,10,0.88);
+    z-index: 5;
+  }
+  .hidden { display: none !important; }
+  h1.title {
+    font-size: 52px;
+    margin: 0 0 10px 0;
+    letter-spacing: 6px;
+    color: #fff;
+    text-shadow: 0 0 10px #0ff, 0 0 25px #0ff, 0 0 45px #f0f;
+  }
+  .subtitle {
+    color: #f0f;
+    text-shadow: 0 0 10px #f0f;
+    letter-spacing: 3px;
+    margin-bottom: 30px;
+    font-size: 14px;
+  }
+  .controls-box {
+    color: #9ff;
+    font-size: 15px;
+    line-height: 1.8;
+    margin-bottom: 30px;
+    border: 1px solid rgba(0,255,255,0.4);
+    padding: 15px 25px;
+    border-radius: 6px;
+    background: rgba(0,255,255,0.05);
+  }
+  .controls-box b { color: #fff; text-shadow: 0 0 6px #0ff; }
+  button.neon-btn {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 20px;
+    letter-spacing: 3px;
+    padding: 14px 34px;
+    background: transparent;
+    border: 2px solid #0ff;
+    color: #0ff;
+    text-shadow: 0 0 8px #0ff;
+    box-shadow: 0 0 12px rgba(0,255,255,0.5), inset 0 0 12px rgba(0,255,255,0.1);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  button.neon-btn:hover {
+    background: rgba(0,255,255,0.15);
+    box-shadow: 0 0 20px rgba(0,255,255,0.9), inset 0 0 20px rgba(0,255,255,0.2);
+  }
+  #bannerOverlay {
+    pointer-events: none;
+    background: transparent;
+  }
+  .banner-text {
+    font-size: 46px;
+    font-weight: bold;
+    letter-spacing: 5px;
+    color: #fff;
+    text-shadow: 0 0 15px #f0f, 0 0 35px #0ff;
+    opacity: 0;
+    transform: scale(0.7);
+  }
+  .banner-sub {
+    font-size: 16px;
+    color: #9ff;
+    margin-top: 10px;
+    letter-spacing: 3px;
+    opacity: 0;
+  }
+  @keyframes bannerPop {
+    0%   { opacity: 0; transform: scale(0.6); }
+    15%  { opacity: 1; transform: scale(1.08); }
+    25%  { opacity: 1; transform: scale(1); }
+    80%  { opacity: 1; transform: scale(1); }
+    100% { opacity: 0; transform: scale(1.1); }
+  }
+  .banner-anim { animation: bannerPop 1.6s ease forwards; }
+  .stat-line { font-size: 18px; color: #9ff; margin: 4px 0; }
+  .stat-line b { color: #fff; }
+</style>
+</head>
+<body>
+<div id="gameContainer">
+  <canvas id="game" width="900" height="600"></canvas>
+
+  <div id="startScreen" class="overlay">
+    <h1 class="title">STOCK V. STICK</h1>
+    <div class="subtitle">A NEON STICK-FIGHTING GAUNTLET // 5 WAVES</div>
+    <div class="controls-box">
+      <div><b>&larr; &rarr;</b> &nbsp; Move</div>
+      <div><b>&uarr;</b> &nbsp; Jump</div>
+      <div><b>SPACE</b> &nbsp; Attack</div>
+      <div><b>CTRL</b> &nbsp; Block</div>
+      <div><b>P</b> &nbsp; Pause</div>
+    </div>
+    <button class="neon-btn" id="startBtn">START FIGHT</button>
+  </div>
+
+  <div id="gameOverScreen" class="overlay hidden">
+    <h1 class="title" style="text-shadow:0 0 10px #f00,0 0 25px #f00,0 0 45px #f0f;">GAME OVER</h1>
+    <div class="stat-line">You fell in <b id="goWave">Wave 1</b></div>
+    <div class="stat-line" style="margin-bottom:25px;">Enemies defeated: <b id="goKills">0</b></div>
+    <button class="neon-btn" id="playAgainBtn1">PLAY AGAIN</button>
+  </div>
+
+  <div id="winScreen" class="overlay hidden">
+    <h1 class="title">YOU WIN</h1>
+    <div class="subtitle" style="color:#0ff;text-shadow:0 0 10px #0ff;">THE GAUNTLET IS CLEARED</div>
+    <div class="stat-line" style="margin-bottom:25px;">Total enemies defeated: <b id="winKills">0</b></div>
+    <button class="neon-btn" id="playAgainBtn2">PLAY AGAIN</button>
+  </div>
+
+  <div id="bannerOverlay" class="overlay hidden">
+    <div class="banner-text" id="bannerMain"></div>
+    <div class="banner-sub" id="bannerSub"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+
+  // ---------- WORLD ----------
+  const GROUND_Y = 560; // top surface of the ground
+  const platforms = [
+    { x: 70,  y: 430, w: 160, h: 16 },
+    { x: 370, y: 330, w: 160, h: 16 },
+    { x: 670, y: 430, w: 160, h: 16 },
+  ];
+  const GRAVITY = 0.62;
+
+  // ---------- WAVE CONFIG ----------
+  const waveConfigs = [
+    { enemyCount: 3, enemyHp: 3, enemyDmg: 1, swordChance: 0.15, speed: 2.0, bossHp: 9,  bossDmg: 2, bossSpeed: 1.7 },
+    { enemyCount: 4, enemyHp: 4, enemyDmg: 1, swordChance: 0.25, speed: 2.2, bossHp: 13, bossDmg: 2, bossSpeed: 1.8 },
+    { enemyCount: 5, enemyHp: 5, enemyDmg: 2, swordChance: 0.35, speed: 2.4, bossHp: 17, bossDmg: 3, bossSpeed: 1.9 },
+    { enemyCount: 6, enemyHp: 6, enemyDmg: 2, swordChance: 0.45, speed: 2.6, bossHp: 22, bossDmg: 3, bossSpeed: 2.0 },
+    { enemyCount: 7, enemyHp: 7, enemyDmg: 2, swordChance: 0.55, speed: 2.8, bossHp: 28, bossDmg: 4, bossSpeed: 2.1 },
+  ];
+
+  // ---------- STATE ----------
+  let state = 'start'; // start | banner | playing | gameover | win
+  let currentWave = 1;
+  let killsThisWave = 0;
+  let totalThisWave = 0;
+  let totalKills = 0;
+  let enemiesSpawnedRegular = 0;
+  let bossSpawned = false;
+  let bossAlive = false;
+  let bossBannerQueued = false;
+  let activeEnemies = [];
+  let popups = []; // floating text feedback
+  let keys = {};
+  let pausedFrom = null;
+  let gameSession = 0; // increments on every reset so stale timers can no-op
+
+  function loadHighScore() {
+    try { return parseInt(localStorage.getItem('stockVStick_highScore'), 10) || 0; }
+    catch (e) { return 0; }
+  }
+  function saveHighScore(v) {
+    try { localStorage.setItem('stockVStick_highScore', String(v)); }
+    catch (e) { /* storage unavailable; high score just won't persist */ }
+  }
+  let score = 0;
+  let highScore = loadHighScore();
+  let celebratedHighScore = false;
+
+  function makeCharacter(x, y, opts) {
+    return Object.assign({
+      x, y, w: 28, h: 72, vx: 0, vy: 0,
+      facing: 1, onGround: false,
+      hp: 10, maxHp: 10,
+      hasSword: false,
+      isAttacking: false, attackTimer: 0,
+      isBlocking: false,
+      lastAttackTime: -9999,
+      attackCooldown: 380,
+      speed: 4.2,
+      isBoss: false,
+      scale: 1,
+      hitFlash: 0,
+      alive: true,
+      aiNextAttack: 0,
+      aiBlockTimer: 0,
+    }, opts || {});
+  }
+
+  let player = makeCharacter(60, GROUND_Y - 72, { speed: 4.4 });
+
+  // ---------- INPUT ----------
+  const trackedKeys = ['ArrowLeft','ArrowRight','ArrowUp',' ','Control'];
+  window.addEventListener('keydown', (e) => {
+    if (trackedKeys.includes(e.key) || e.code === 'ControlLeft' || e.code === 'ControlRight' || e.code === 'Space') {
+      e.preventDefault();
+    }
+    keys[e.key] = true;
+    if (e.code === 'Space') keys[' '] = true;
+    if (e.code === 'ControlLeft' || e.code === 'ControlRight') keys['Control'] = true;
+  });
+  window.addEventListener('keyup', (e) => {
+    keys[e.key] = false;
+    if (e.code === 'Space') keys[' '] = false;
+    if (e.code === 'ControlLeft' || e.code === 'ControlRight') keys['Control'] = false;
+  });
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'p' || e.key === 'P') {
+      if (state === 'playing') {
+        pausedFrom = 'playing';
+        state = 'paused';
+      } else if (state === 'paused') {
+        state = pausedFrom || 'playing';
+        pausedFrom = null;
+      }
+    }
+  });
+
+  // ---------- HELPERS ----------
+  function rectsOverlapX(a, b) {
+    return a.x < b.x + b.w && a.x + a.w > b.x;
+  }
+
+  function addPopup(text, x, y, color) {
+    popups.push({ text, x, y, alpha: 1, vy: -0.6, color: color || '#0ff', life: 60 });
+  }
+
+  function showBanner(main, sub, duration, callback) {
+    const session = gameSession;
+    state = 'banner';
+    const overlay = document.getElementById('bannerOverlay');
+    const mainEl = document.getElementById('bannerMain');
+    const subEl = document.getElementById('bannerSub');
+    overlay.classList.remove('hidden');
+    mainEl.textContent = main;
+    subEl.textContent = sub || '';
+    mainEl.classList.remove('banner-anim');
+    subEl.style.animation = 'none';
+    void mainEl.offsetWidth; // reflow to restart animation
+    mainEl.classList.add('banner-anim');
+    subEl.style.opacity = '0';
+    subEl.style.transition = 'opacity 0.4s ease 0.3s';
+    requestAnimationFrame(() => { subEl.style.opacity = '1'; });
+    setTimeout(() => {
+      overlay.classList.add('hidden');
+      if (session !== gameSession) return; // game was reset while banner was showing
+      if (callback) callback();
+    }, duration);
+  }
+
+  // ---------- PHYSICS ----------
+  function applyPhysics(c) {
+    c.vy += GRAVITY;
+    c.x += c.vx;
+    c.y += c.vy;
+
+    // world bounds
+    if (c.x < 10) c.x = 10;
+    if (c.x + c.w > W - 10) c.x = W - 10 - c.w;
+
+    c.onGround = false;
+
+    // ground collision
+    if (c.y + c.h >= GROUND_Y) {
+      c.y = GROUND_Y - c.h;
+      c.vy = 0;
+      c.onGround = true;
+    }
+
+    // platform collision (only when falling)
+    for (const p of platforms) {
+      const feetY = c.y + c.h;
+      const prevFeetY = feetY - c.vy;
+      if (c.vy >= 0 &&
+          c.x + c.w > p.x && c.x < p.x + p.w &&
+          prevFeetY <= p.y + 2 && feetY >= p.y) {
+        c.y = p.y - c.h;
+        c.vy = 0;
+        c.onGround = true;
+      }
+    }
+  }
+
+  // ---------- COMBAT ----------
+  function tryAttack(attacker, defenders, now) {
+    if (now - attacker.lastAttackTime < attacker.attackCooldown) return;
+    attacker.lastAttackTime = now;
+    attacker.isAttacking = true;
+    attacker.attackTimer = 14;
+
+    const range = (attacker.hasSword ? 78 : 62) * attacker.scale;
+    for (const d of defenders) {
+      if (!d.alive) continue;
+      const dx = (d.x + d.w/2) - (attacker.x + attacker.w/2);
+      const dy = (d.y + d.h/2) - (attacker.y + attacker.h/2);
+      const inFront = (attacker.facing === 1 && dx > 0) || (attacker.facing === -1 && dx < 0);
+      if (inFront && Math.abs(dx) <= range && Math.abs(dy) < 55) {
+        if (d.isBlocking) {
+          addPopup('BLOCKED', d.x + d.w/2, d.y - 10, '#0ff');
+        } else {
+          const dmg = attacker.hasSword ? (attacker.baseDmg || 1) * 2 : (attacker.baseDmg || 1);
+          d.hp -= dmg;
+          d.hitFlash = 8;
+          addPopup('-' + dmg, d.x + d.w/2, d.y - 10, d.isBoss ? '#f0f' : '#f55');
+          if (d.hp <= 0) {
+            d.hp = 0;
+            d.alive = false;
+          }
+        }
+      }
+    }
+  }
+
+  // ---------- WAVE MANAGEMENT ----------
+  function spawnPos() {
+    const roll = Math.random();
+    if (roll < 0.55) {
+      return { x: 780, y: GROUND_Y - 72 };
+    } else {
+      const p = platforms[Math.floor(Math.random() * platforms.length)];
+      return { x: p.x + p.w/2 - 14, y: p.y - 72 };
+    }
+  }
+
+  function spawnRegularEnemy() {
+    const cfg = waveConfigs[currentWave - 1];
+    const pos = spawnPos();
+    const e = makeCharacter(pos.x, pos.y, {
+      hp: cfg.enemyHp, maxHp: cfg.enemyHp,
+      speed: cfg.speed, baseDmg: cfg.enemyDmg,
+      hasSword: Math.random() < cfg.swordChance,
+      facing: -1,
+      attackCooldown: Math.max(500, 1100 - currentWave * 60),
+    });
+    activeEnemies.push(e);
+    enemiesSpawnedRegular++;
+  }
+
+  function spawnBoss() {
+    const cfg = waveConfigs[currentWave - 1];
+    const e = makeCharacter(760, GROUND_Y - 72 * 1.6, {
+      hp: cfg.bossHp, maxHp: cfg.bossHp,
+      speed: cfg.bossSpeed, baseDmg: cfg.bossDmg,
+      hasSword: true,
+      facing: -1,
+      isBoss: true,
+      scale: 1.6,
+      w: 28 * 1.6, h: 72 * 1.6,
+      attackCooldown: 900,
+    });
+    activeEnemies.push(e);
+    bossSpawned = true;
+    bossAlive = true;
+  }
+
+  function spawnNextBatch() {
+    const cfg = waveConfigs[currentWave - 1];
+    const remaining = cfg.enemyCount - enemiesSpawnedRegular;
+    if (remaining <= 0) return;
+    const batch = Math.min(remaining, Math.random() < 0.5 ? 1 : 2);
+    for (let i = 0; i < batch; i++) spawnRegularEnemy();
+  }
+
+  function startWave(n) {
+    currentWave = n;
+    killsThisWave = 0;
+    const cfg = waveConfigs[n - 1];
+    totalThisWave = cfg.enemyCount + 1;
+    enemiesSpawnedRegular = 0;
+    bossSpawned = false;
+    bossAlive = false;
+    bossBannerQueued = false;
+    activeEnemies = [];
+    showBanner('WAVE ' + n, n === 1 ? 'GET READY' : '', 1500, () => {
+      spawnNextBatch();
+      state = 'playing';
+    });
+  }
+
+  function onEnemyDefeated(enemy) {
+    killsThisWave++;
+    totalKills++;
+    score += enemy.isBoss ? 3 : 1;
+    if (score > highScore) {
+      if (!celebratedHighScore) {
+        celebratedHighScore = true;
+        addPopup('NEW HIGH SCORE!', player.x + player.w/2, player.y - 50, '#ff0');
+      }
+      highScore = score;
+      saveHighScore(highScore);
+    }
+    if (enemy.hasSword && !player.hasSword) {
+      player.hasSword = true;
+      addPopup('SWORD ACQUIRED!', player.x + player.w/2, player.y - 30, '#ff0');
+    }
+    if (enemy.isBoss) {
+      bossAlive = false;
+      if (currentWave >= 5) {
+        const session = gameSession;
+        setTimeout(() => {
+          if (session !== gameSession) return;
+          state = 'win';
+          document.getElementById('winKills').textContent = totalKills;
+          document.getElementById('winScreen').classList.remove('hidden');
+        }, 500);
+      } else {
+        showBanner('WAVE ' + currentWave + ' COMPLETE!', '', 1400, () => {
+          startWave(currentWave + 1);
+        });
+      }
+    } else {
+      const cfg = waveConfigs[currentWave - 1];
+      if (enemiesSpawnedRegular < cfg.enemyCount) {
+        spawnNextBatch();
+      } else if (!bossSpawned && !bossBannerQueued) {
+        bossBannerQueued = true;
+        showBanner('BOSS INCOMING', 'Wave ' + currentWave, 1300, () => {
+          spawnBoss();
+          state = 'playing';
+        });
+      }
+    }
+  }
+
+  // ---------- AI ----------
+  function updateEnemyAI(e, now) {
+    if (!e.alive) return;
+    const dx = (player.x + player.w/2) - (e.x + e.w/2);
+    const dist = Math.abs(dx);
+    const range = (e.hasSword ? 78 : 62) * e.scale;
+
+    e.isBlocking = false;
+    if (currentWave >= 3 && dist < range + 20 && Math.random() < 0.01) {
+      e.aiBlockTimer = 30;
+    }
+    if (e.aiBlockTimer > 0) {
+      e.aiBlockTimer--;
+      e.isBlocking = true;
+      e.vx = 0;
+    } else if (dist > range - 10) {
+      e.facing = dx > 0 ? 1 : -1;
+      e.vx = e.facing * e.speed;
+    } else {
+      e.facing = dx > 0 ? 1 : -1;
+      e.vx = 0;
+      if (now > e.aiNextAttack) {
+        tryAttack(e, [player], now);
+        e.aiNextAttack = now + e.attackCooldown + Math.random() * 400;
+      }
+    }
+
+    if (e.onGround && Math.random() < 0.003 && Math.abs(e.y - (GROUND_Y - e.h)) < 4) {
+      e.vy = -13;
+    }
+  }
+
+  // ---------- UPDATE ----------
+  function updatePlaying(now) {
+    // player input
+    player.vx = 0;
+    player.isBlocking = false;
+    if (keys['Control']) {
+      player.isBlocking = true;
+    } else {
+      if (keys['ArrowLeft']) { player.vx = -player.speed; player.facing = -1; }
+      if (keys['ArrowRight']) { player.vx = player.speed; player.facing = 1; }
+      if (keys['ArrowUp'] && player.onGround) { player.vy = -13.5; }
+      if (keys[' ']) { tryAttack(player, activeEnemies, now); }
+    }
+
+    applyPhysics(player);
+    if (player.hitFlash > 0) player.hitFlash--;
+    if (player.attackTimer > 0) { player.attackTimer--; } else { player.isAttacking = false; }
+
+    for (const e of activeEnemies) {
+      if (!e.alive) continue;
+      updateEnemyAI(e, now);
+      applyPhysics(e);
+      if (e.hitFlash > 0) e.hitFlash--;
+      if (e.attackTimer > 0) { e.attackTimer--; } else { e.isAttacking = false; }
+    }
+
+    // remove defeated enemies (after triggering rewards once)
+    for (let i = activeEnemies.length - 1; i >= 0; i--) {
+      const e = activeEnemies[i];
+      if (!e.alive && !e.rewarded) {
+        e.rewarded = true;
+        onEnemyDefeated(e);
+      }
+    }
+    activeEnemies = activeEnemies.filter(e => e.alive);
+
+    // popups
+    for (const p of popups) { p.y += p.vy; p.life--; p.alpha = Math.max(0, p.life / 60); }
+    popups = popups.filter(p => p.life > 0);
+
+    // player death
+    if (player.hp <= 0 && state === 'playing') {
+      state = 'gameover';
+      document.getElementById('goWave').textContent = 'Wave ' + currentWave;
+      document.getElementById('goKills').textContent = totalKills;
+      document.getElementById('gameOverScreen').classList.remove('hidden');
+    }
+  }
+
+  // ---------- DRAWING ----------
+  function drawBackground() {
+    ctx.clearRect(0, 0, W, H);
+    // grid
+    ctx.save();
+    ctx.strokeStyle = 'rgba(0,255,255,0.06)';
+    ctx.lineWidth = 1;
+    for (let gx = 0; gx < W; gx += 40) {
+      ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, H); ctx.stroke();
+    }
+    for (let gy = 0; gy < H; gy += 40) {
+      ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(W, gy); ctx.stroke();
+    }
+    ctx.restore();
+
+    // ground
+    ctx.save();
+    ctx.shadowColor = '#f0f';
+    ctx.shadowBlur = 15;
+    ctx.strokeStyle = '#f0f';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(0, GROUND_Y);
+    ctx.lineTo(W, GROUND_Y);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255,0,255,0.05)';
+    ctx.fillRect(0, GROUND_Y, W, H - GROUND_Y);
+    ctx.restore();
+
+    // platforms
+    ctx.save();
+    ctx.shadowColor = '#0ff';
+    ctx.shadowBlur = 14;
+    ctx.strokeStyle = '#0ff';
+    ctx.lineWidth = 2.5;
+    ctx.fillStyle = 'rgba(0,255,255,0.06)';
+    for (const p of platforms) {
+      ctx.fillRect(p.x, p.y, p.w, p.h);
+      ctx.strokeRect(p.x, p.y, p.w, p.h);
+    }
+    ctx.restore();
+  }
+
+  function drawStick(c, color, isPlayer) {
+    const s = c.scale;
+    const cx = c.x + c.w / 2;
+    const topY = c.y;
+    const headR = 9 * s;
+    const bodyTop = topY + headR * 2;
+    const bodyBottom = bodyTop + 24 * s;
+    const legBottom = c.y + c.h;
+
+    ctx.save();
+    ctx.shadowColor = c.hitFlash > 0 ? '#fff' : color;
+    ctx.shadowBlur = c.hitFlash > 0 ? 25 : 12;
+    ctx.strokeStyle = c.hitFlash > 0 ? '#fff' : color;
+    ctx.lineWidth = 3 * s;
+    ctx.lineCap = 'round';
+
+    // head
+    ctx.beginPath();
+    ctx.arc(cx, topY + headR, headR, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // body — the player is a hollow "stock" circle, enemies stay classic "stick" lines
+    if (isPlayer) {
+      const bodyR = (bodyBottom - bodyTop) / 2;
+      const bodyCenterY = (bodyTop + bodyBottom) / 2;
+      ctx.beginPath();
+      ctx.arc(cx, bodyCenterY, bodyR, 0, Math.PI * 2);
+      ctx.stroke();
+    } else {
+      ctx.beginPath();
+      ctx.moveTo(cx, bodyTop);
+      ctx.lineTo(cx, bodyBottom);
+      ctx.stroke();
+    }
+
+    // legs
+    const legSpread = 10 * s;
+    const legPhase = c.onGround && Math.abs(c.vx) > 0.1 ? Math.sin(Date.now() / 80) * 8 * s : 0;
+    ctx.beginPath();
+    ctx.moveTo(cx, bodyBottom);
+    ctx.lineTo(cx - legSpread + legPhase, legBottom);
+    ctx.moveTo(cx, bodyBottom);
+    ctx.lineTo(cx + legSpread - legPhase, legBottom);
+    ctx.stroke();
+
+    // arms + weapon
+    const armY = bodyTop + 6 * s;
+    const backArmX = cx - c.facing * 12 * s;
+    ctx.beginPath();
+    ctx.moveTo(cx, armY);
+    ctx.lineTo(backArmX, armY + 10 * s);
+    ctx.stroke();
+
+    let frontArmX = cx + c.facing * 14 * s;
+    let frontArmY = armY + 8 * s;
+    if (c.isBlocking) {
+      frontArmX = cx + c.facing * 10 * s;
+      frontArmY = armY - 4 * s;
+    } else if (c.isAttacking) {
+      frontArmX = cx + c.facing * (c.hasSword ? 34 : 24) * s;
+      frontArmY = armY + 2 * s;
+    }
+    ctx.beginPath();
+    ctx.moveTo(cx, armY);
+    ctx.lineTo(frontArmX, frontArmY);
+    ctx.stroke();
+
+    // sword
+    if (c.hasSword) {
+      ctx.save();
+      ctx.shadowColor = '#ff0';
+      ctx.shadowBlur = 10;
+      ctx.strokeStyle = c.isAttacking ? '#fff' : '#ff0';
+      ctx.lineWidth = 3 * s;
+      const swordLen = 26 * s;
+      const swordEndX = frontArmX + c.facing * swordLen * (c.isAttacking ? 1.3 : 1);
+      ctx.beginPath();
+      ctx.moveTo(frontArmX, frontArmY);
+      ctx.lineTo(swordEndX, frontArmY - 6 * s);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // block shield hint
+    if (c.isBlocking) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(0,255,255,0.6)';
+      ctx.shadowColor = '#0ff';
+      ctx.shadowBlur = 10;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(cx + c.facing * 16 * s, armY + 4 * s, 12 * s, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    ctx.restore();
+
+    // HP bar
+    const barW = 40 * s, barH = 5;
+    const barX = cx - barW / 2, barY = topY - 14;
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(barX, barY, barW, barH);
+    const pct = Math.max(0, c.hp / c.maxHp);
+    ctx.fillStyle = c.isBoss ? '#f0f' : (color === '#0ff' ? '#0ff' : '#f55');
+    ctx.shadowColor = ctx.fillStyle;
+    ctx.shadowBlur = 6;
+    ctx.fillRect(barX, barY, barW * pct, barH);
+    ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(barX, barY, barW, barH);
+    ctx.restore();
+  }
+
+  function drawHUD() {
+    ctx.save();
+    ctx.font = 'bold 20px Courier New';
+    ctx.fillStyle = '#fff';
+    ctx.shadowColor = '#0ff';
+    ctx.shadowBlur = 8;
+    ctx.textAlign = 'left';
+    ctx.fillText('WAVE ' + currentWave, 20, 32);
+
+    ctx.font = '14px Courier New';
+    ctx.fillStyle = '#9ff';
+    ctx.shadowBlur = 4;
+    ctx.fillText('HP', 20, 52);
+    ctx.strokeStyle = '#0ff';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(48, 42, 150, 14);
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(48, 42, 150, 14);
+    const hpPct = Math.max(0, player.hp / player.maxHp);
+    ctx.fillStyle = hpPct > 0.3 ? '#0f0' : '#f00';
+    ctx.shadowColor = ctx.fillStyle;
+    ctx.shadowBlur = 8;
+    ctx.fillRect(48, 42, 150 * hpPct, 14);
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#fff';
+    ctx.font = '11px Courier New';
+    ctx.fillText(Math.max(0, player.hp) + ' / ' + player.maxHp, 205, 53);
+
+    if (player.hasSword) {
+      ctx.fillStyle = '#ff0';
+      ctx.shadowColor = '#ff0';
+      ctx.shadowBlur = 8;
+      ctx.font = 'bold 13px Courier New';
+      ctx.fillText('⚔ SWORD EQUIPPED', 20, 75);
+    }
+
+    // top right tally
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#fff';
+    ctx.shadowColor = '#f0f';
+    ctx.shadowBlur = 8;
+    ctx.font = 'bold 16px Courier New';
+    ctx.fillText('Defeated: ' + killsThisWave + ' / ' + totalThisWave, W - 20, 32);
+    ctx.font = 'bold 14px Courier New';
+    ctx.fillStyle = '#ff0';
+    ctx.shadowColor = '#ff0';
+    ctx.shadowBlur = 6;
+    ctx.fillText('Score: ' + score + '   Best: ' + highScore, W - 20, 52);
+    ctx.restore();
+  }
+
+  function drawPopups() {
+    ctx.save();
+    ctx.textAlign = 'center';
+    for (const p of popups) {
+      ctx.globalAlpha = p.alpha;
+      ctx.fillStyle = p.color;
+      ctx.shadowColor = p.color;
+      ctx.shadowBlur = 8;
+      ctx.font = 'bold 15px Courier New';
+      ctx.fillText(p.text, p.x, p.y);
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  // ---------- MAIN LOOP ----------
+  function loop() {
+    const now = performance.now();
+    drawBackground();
+
+    if (state === 'playing') {
+      updatePlaying(now);
+    }
+
+    if (state === 'playing' || state === 'banner' || state === 'paused') {
+      drawStick(player, '#0ff', true);
+      for (const e of activeEnemies) {
+        if (e.alive) drawStick(e, e.isBoss ? '#f0f' : '#f55', false);
+      }
+      drawPopups();
+      drawHUD();
+    }
+
+    if (state === 'paused') {
+      ctx.save();
+      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      ctx.fillRect(0, 0, W, H);
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#0ff';
+      ctx.shadowColor = '#0ff';
+      ctx.shadowBlur = 18;
+      ctx.font = 'bold 42px Courier New';
+      ctx.fillText('PAUSED', W / 2, H / 2);
+      ctx.font = '16px Courier New';
+      ctx.shadowBlur = 6;
+      ctx.fillText('Press P to resume', W / 2, H / 2 + 32);
+      ctx.restore();
+    }
+
+    requestAnimationFrame(loop);
+  }
+
+  // ---------- RESET / START ----------
+  function resetGame() {
+    gameSession++;
+    pausedFrom = null;
+    score = 0;
+    celebratedHighScore = false;
+    player = makeCharacter(60, GROUND_Y - 72, { speed: 4.4 });
+    currentWave = 1;
+    totalKills = 0;
+    activeEnemies = [];
+    popups = [];
+    document.getElementById('gameOverScreen').classList.add('hidden');
+    document.getElementById('winScreen').classList.add('hidden');
+    startWave(1);
+  }
+
+  document.getElementById('startBtn').addEventListener('click', () => {
+    document.getElementById('startScreen').classList.add('hidden');
+    resetGame();
+  });
+  document.getElementById('playAgainBtn1').addEventListener('click', resetGame);
+  document.getElementById('playAgainBtn2').addEventListener('click', resetGame);
+
+  loop();
+})();
+</script>
+</body>
+</html>
